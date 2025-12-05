@@ -47,20 +47,30 @@ jobs:
     - name: Install coverage
       run: pip install coverage
 
-    - name: Prepare python coverage wrappers
+    - name: Prepare universal coverage wrapper
       run: |
         mkdir -p pywrap
         cd pywrap
 
-        # Create universal wrapper
-        echo '#!/bin/bash' > wrapper
-        echo 'coverage run --parallel-mode "$@"' >> wrapper
+        # Create the universal wrapper
+        cat > wrapper <<'EOF'
+        #!/bin/bash
+        if [[ "$0" =~ pytest$ ]]; then
+          exec coverage run --parallel-mode -m pytest "$@"
+        else
+          exec coverage run --parallel-mode "$@"
+        fi
+        EOF
         chmod +x wrapper
 
-        # Create wrappers for all python variants we may encounter
-        for exe in python python3 python3.8 python3.9 python3.10 python3.11 python3.12 python3.13 python3.14; do
-          cp wrapper "$exe"
+        # Symlink for all common executables
+        for exe in python python3 python3.8 python3.9 python3.10 python3.11 python3.12 python3.13 python3.14 pytest; do
+          ln -s wrapper "$exe"
         done
+
+        # Add to PATH
+        echo "$PWD" >> $GITHUB_PATH
+
 
     - name: Activate coverage wrappers
       run: |
