@@ -42,6 +42,56 @@ jobs:
 
     - name: Install dependencies
       run: make install-dev
+    
+        # ---------- INSERT COVERAGE WRAPPER HERE ----------
+    - name: Install coverage
+      run: pip install coverage
+
+    - name: Prepare python coverage wrappers
+      run: |
+        mkdir -p pywrap
+        cd pywrap
+
+        # Create universal wrapper
+        echo '#!/bin/bash' > wrapper
+        echo 'coverage run --parallel-mode "$@"' >> wrapper
+        chmod +x wrapper
+
+        # Create wrappers for all python variants we may encounter
+        for exe in python python3 python3.8 python3.9 python3.10 python3.11 python3.12 python3.13 python3.14; do
+          cp wrapper "$exe"
+        done
+
+    - name: Activate coverage wrappers
+      run: |
+        # Add pywrap directory to global PATH across steps
+        echo "$PWD/pywrap" >> $GITHUB_PATH
+
+        # Create coverage configuration
+        echo "[run]" > .coveragerc
+        echo "parallel = True" >> .coveragerc
+        echo "branch = True" >> .coveragerc
+        echo "source = ." >> .coveragerc
+
+        # Export as job-level environment variable
+        echo "COVERAGE_PROCESS_START=$(pwd)/.coveragerc" >> $GITHUB_ENV
+    # ---------------------------------------------------
 
     - name: Run tests
       run: make test
+    
+    # ---------- INSERT COVERAGE WRAPPER HERE ----------
+    - name: Combine and export coverage
+      run: |
+        coverage combine || true
+        coverage json -o coverage.json || true
+        ls -lh coverage.json || true
+    
+    - name: Print head of coverage
+      run: head coverage.json
+    
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: coverage.json
